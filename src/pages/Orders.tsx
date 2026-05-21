@@ -117,7 +117,7 @@ export default function Orders() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Gestion des Commandes</h1>
           <p className="text-slate-500 text-sm">

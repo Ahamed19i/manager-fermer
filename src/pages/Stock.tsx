@@ -232,7 +232,7 @@ export default function Stock() {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold dark:text-white">Gestion des Stocks</h1>
           <p className="text-slate-500 text-sm">Transferts de palettes (Plateaux de 30 œufs)</p>

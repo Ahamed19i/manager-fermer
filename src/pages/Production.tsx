@@ -124,7 +124,7 @@ export default function Production() {
 
   return (
     <div className="space-y-8 font-sans">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-white">Production Œufs</h1>
           <p className="text-slate-500 font-medium tracking-tight">Suivi de la récolte à la ferme centrale.</p>
@@ -207,6 +207,7 @@ export default function Production() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <div className="overflow-x-auto w-full no-scrollbar">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-900 border-slate-800">
@@ -248,6 +249,7 @@ export default function Production() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
             </CardContent>
           </Card>
         </div>

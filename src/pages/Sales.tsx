@@ -188,7 +188,7 @@ export default function Sales() {
 
   return (
     <div className="space-y-8 font-sans">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-white">Ventes & Terrain</h1>
           <p className="text-slate-500 font-medium tracking-tight">Enregistrez les sorties de stock vers les clients.</p>
