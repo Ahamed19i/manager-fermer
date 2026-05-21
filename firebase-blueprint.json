@@ -1,0 +1,139 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role management",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "employee", "client"] },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Client self-service orders or team recorded purchases",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "quantity": { "type": "number", "description": "Quantity in palettes/plateaux" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"] },
+        "date": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      },
+      "required": ["clientId", "quantity", "status", "date"]
+    },
+    "Production": {
+      "title": "Production",
+      "description": "Daily egg production record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "quantity": { "type": "number", "description": "Total eggs produced" },
+        "broken": { "type": "number", "description": "Number of broken/lost eggs" },
+        "grade": { "type": "string", "enum": ["A", "B", "C"] },
+        "notes": { "type": "string" },
+        "recordedBy": { "type": "string", "description": "User UID who recorded this" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "quantity", "recordedBy"]
+    },
+    "Stock": {
+      "title": "Stock",
+      "description": "Inventory levels at different locations (Farm, Van, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "location": { "type": "string", "description": "e.g. 'Farm', 'Van-01', 'Seller-UID'" },
+        "quantity": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["location", "quantity"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Transaction record for egg sales",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["cash", "mobile_money", "credit"] },
+        "status": { "type": "string", "enum": ["completed", "pending", "returned"] },
+        "location": { "type": "string", "description": "Sale location" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sellerId", "quantity", "totalPrice", "date"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Customer information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "totalOrders": { "type": "number" },
+        "totalSpent": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "StockLog": {
+      "title": "StockLog",
+      "description": "History of stock movements",
+      "type": "object",
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "quantity": { "type": "number" },
+        "type": { "type": "string", "enum": ["production", "sale", "transfer", "adjustment"] },
+        "recordedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/productions/{productionId}": {
+      "schema": "Production",
+      "description": "Daily production records"
+    },
+    "/stocks/{locationId}": {
+      "schema": "Stock",
+      "description": "Current stock levels per location"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales records"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Customer records"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Client self-service orders"
+    },
+    "/stockLogs/{logId}": {
+      "schema": "StockLog",
+      "description": "Journal of all stock movements"
+    }
+  }
+}
