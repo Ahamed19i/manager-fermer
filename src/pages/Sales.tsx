@@ -73,11 +73,11 @@ export default function Sales() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('Moroni');
   const [quantity, setQuantity] = useState(1);
-  const [unitPrice, setUnitPrice] = useState(2500); // Ex: 2500 KMF per plateau
+  const [unitPrice, setUnitPrice] = useState(3000); // Ex: 3000 KMF per plateau
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [saleDate, setSaleDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const locations = ['Centrale', 'Moroni', 'Mitsamihouli', 'Mkazi', 'Itsinkoudi'];
+  const locations = ['Centrale', 'Moroni', 'Mbeni', 'Itsinkoudi', 'Kouhani', 'Hasseindjé', 'Mtsamdou', 'Hambou'];
 
   useEffect(() => {
     fetchData();
@@ -124,7 +124,7 @@ export default function Sales() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
   const [editQty, setEditQty] = useState(1);
-  const [editPrice, setEditPrice] = useState(2500);
+  const [editPrice, setEditPrice] = useState(3000);
   const [editLocation, setEditLocation] = useState('Moroni');
   const [editPayment, setEditPayment] = useState('cash');
   const [isUpdating, setIsUpdating] = useState(false);
