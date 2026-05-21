@@ -4,6 +4,7 @@ import {
   User as FirebaseUser, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
@@ -119,7 +120,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.warn("Popup blocked or failed, attempting redirect...", error);
+      if (
+        error.code === 'auth/popup-blocked' || 
+        error.code === 'auth/popup-closed-by-user' || 
+        error.code === 'auth/cancelled-popup-request' ||
+        error.message?.includes('popup')
+      ) {
+         await signInWithRedirect(auth, provider);
+      } else {
+        throw error;
+      }
+    }
   };
 
   const signInWithEmail = async (email: string, pass: string) => {

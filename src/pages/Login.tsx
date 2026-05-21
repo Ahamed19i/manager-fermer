@@ -29,15 +29,33 @@ export default function Login() {
       toast.success("Connexion établie avec succès.");
     } catch (error: any) {
       console.error("Google Auth Error:", error);
+      
+      // If popup is blocked or closed/cancelled immediately, perform redirect fallback
+      if (
+        error.code === 'auth/popup-blocked' || 
+        error.code === 'auth/popup-closed-by-user' || 
+        error.code === 'auth/cancelled-popup-request' ||
+        error.message?.includes('popup')
+      ) {
+        toast.info("Fenêtre bloquée ou fermée par le navigateur. Redirection automatique vers Google...", { duration: 6000 });
+        try {
+          const { signInWithRedirect, GoogleAuthProvider } = await import('firebase/auth');
+          const { auth } = await import('../lib/firebase');
+          const provider = new GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          await signInWithRedirect(auth, provider);
+        } catch (redirectError) {
+          console.error("Failed to redirect:", redirectError);
+          toast.error("Impossible d'effectuer la redirection automatique.");
+        }
+        return;
+      }
+
       let errMsg = "Une erreur est survenue lors de la connexion Google.";
       if (error.code === 'auth/unauthorized-domain') {
         errMsg = "Ce nom de domaine (manager-fermer.vercel.app ou autre) n'est pas autorisé dans votre console Firebase. Veuillez l'ajouter sous Firebase Auth -> Paramètres -> Domaines autorisés.";
       } else if (error.code === 'auth/operation-not-allowed') {
         errMsg = "La connexion Google n'est pas activée dans votre console Firebase. Veuillez aller sur Firebase console -> Authentication -> Sign-in Method (Mode de connexion) et ACTIVER l'authentification Google.";
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        errMsg = "La fenêtre de connexion Google a été fermée avant la fin.";
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        errMsg = "Requête de connexion interrompue ou annulée.";
       } else if (error.message) {
         errMsg = error.message;
       }
