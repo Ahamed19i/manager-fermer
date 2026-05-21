@@ -302,7 +302,7 @@ export default function UserManagement() {
                   user.role === 'employee' ? "bg-blue-500/10 text-blue-500 ring-blue-500/20" :
                   "bg-green-500/10 text-green-500 ring-green-500/20"
                 )}>
-                  {user.displayName.charAt(0)}
+                  {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <Badge className={cn(
                   "rounded-full border-none font-black text-[9px] uppercase tracking-widest px-3 py-1 ring-1",
@@ -314,7 +314,9 @@ export default function UserManagement() {
                 </Badge>
               </div>
 
-              <h3 className="font-black text-xl text-white mb-1 tracking-tight truncate">{user.displayName}</h3>
+              <h3 className="font-black text-xl text-white mb-1 tracking-tight truncate">
+                {user.displayName || user.email?.split('@')[0] || 'Utilisateur'}
+              </h3>
               <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-4 flex items-center gap-2">
                 <Mail className="w-3 h-3" /> {user.email}
               </p>

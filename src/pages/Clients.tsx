@@ -196,13 +196,13 @@ export default function Clients() {
                  <div className="p-8">
                     <div className="flex justify-between items-start mb-6">
                        <div className="w-14 h-14 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner ring-1 ring-blue-500/20">
-                         {client.name.charAt(0)}
+                         {(client.name || 'C').charAt(0).toUpperCase()}
                        </div>
                        <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5 active:scale-95 transition-all">
                          <MoreVertical className="w-5 h-5 text-slate-600" />
                        </Button>
                     </div>
-                    <h3 className="font-black text-xl text-white mb-4 tracking-tight">{client.name}</h3>
+                    <h3 className="font-black text-xl text-white mb-4 tracking-tight">{client.name || 'Client sans nom'}</h3>
                     <div className="space-y-3">
                        <div className="flex items-center gap-3 text-slate-400 font-bold text-sm">
                          <div className="p-1.5 bg-slate-800 rounded-lg"><Phone className="w-4 h-4 text-slate-500" /></div>
@@ -236,10 +236,10 @@ export default function Clients() {
           <DialogHeader className="p-8 pb-4">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center font-black text-xl text-blue-500 ring-1 ring-blue-500/30">
-                {selectedClient?.name.charAt(0)}
+                {(selectedClient?.name || 'C').charAt(0).toUpperCase()}
               </div>
               <div>
-                <DialogTitle className="text-2xl font-black tracking-tighter">{selectedClient?.name}</DialogTitle>
+                <DialogTitle className="text-2xl font-black tracking-tighter">{selectedClient?.name || 'Client sans nom'}</DialogTitle>
                 <DialogDescription className="text-slate-500 font-bold">Historique des transactions récentes</DialogDescription>
               </div>
             </div>
