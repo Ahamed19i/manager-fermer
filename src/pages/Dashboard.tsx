@@ -68,12 +68,19 @@ export default function Dashboard() {
           // Client specific stats/data
           const ordersQuery = query(
             collection(db, 'orders'),
-            where('clientId', '==', profile.uid),
-            orderBy('date', 'desc'),
-            limit(5)
+            where('clientId', '==', profile.uid)
           );
           const ordersSnap = await getDocs(ordersQuery);
-          setRecentOrders(ordersSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })));
+          const rawOrders = ordersSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) }));
+          
+          // Tri en mémoire robuste (gère les timestamps Firebase et les dates standard, avec fallback)
+          rawOrders.sort((a: any, b: any) => {
+            const timeA = a.date?.seconds ? a.date.seconds * 1000 : (a.date ? new Date(a.date).getTime() : 0);
+            const timeB = b.date?.seconds ? b.date.seconds * 1000 : (b.date ? new Date(b.date).getTime() : 0);
+            return timeB - timeA;
+          });
+          
+          setRecentOrders(rawOrders.slice(0, 5));
         } else {
           // Admin/Employee stats
           const prodSnap = await getDocs(collection(db, 'productions'));

@@ -57,23 +57,31 @@ export default function Orders() {
     try {
       let q;
       if (profile?.role === 'client') {
-        q = query(
+        const clientsQuery = query(
           collection(db, 'orders'), 
-          where('clientId', '==', profile.uid),
-          orderBy('date', 'desc'),
-          limit(20)
+          where('clientId', '==', profile.uid)
         );
+        const snap = await getDocs(clientsQuery);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) } as OrderRecord));
+        
+        // Tri en mémoire robuste pour éviter les index composites requis de Firestore
+        data.sort((a: any, b: any) => {
+          const timeA = a.date?.seconds ? a.date.seconds * 1000 : (a.date ? new Date(a.date).getTime() : 0);
+          const timeB = b.date?.seconds ? b.date.seconds * 1000 : (b.date ? new Date(b.date).getTime() : 0);
+          return timeB - timeA;
+        });
+
+        setOrders(data.slice(0, 20));
       } else {
-        q = query(
+        const adminQuery = query(
           collection(db, 'orders'), 
           orderBy('date', 'desc'),
           limit(50)
         );
+        const snap = await getDocs(adminQuery);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) } as OrderRecord));
+        setOrders(data);
       }
-      
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) } as OrderRecord));
-      setOrders(data);
     } catch (error) {
       console.error(error);
     } finally {

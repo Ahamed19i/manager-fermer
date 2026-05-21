@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
 import { Toaster } from './components/ui/sonner';
@@ -35,7 +35,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <HashRouter>
         <React.Suspense fallback={
           <div className="h-screen w-screen flex items-center justify-center bg-[#020617]">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-600"></div>
@@ -55,7 +55,7 @@ export default function App() {
           </Routes>
         </React.Suspense>
         <Toaster position="top-center" richColors />
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 }

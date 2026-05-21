@@ -22,6 +22,31 @@ export default function Login() {
   if (loading) return null;
   if (user) return <Navigate to="/" />;
 
+  const handleGoogleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await signInWithGoogle();
+      toast.success("Connexion établie avec succès.");
+    } catch (error: any) {
+      console.error("Google Auth Error:", error);
+      let errMsg = "Une erreur est survenue lors de la connexion Google.";
+      if (error.code === 'auth/unauthorized-domain') {
+        errMsg = "Ce nom de domaine (manager-fermer.vercel.app ou autre) n'est pas autorisé dans votre console Firebase. Veuillez l'ajouter sous Firebase Auth -> Paramètres -> Domaines autorisés.";
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errMsg = "La connexion Google n'est pas activée dans votre console Firebase. Veuillez aller sur Firebase console -> Authentication -> Sign-in Method (Mode de connexion) et ACTIVER l'authentification Google.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errMsg = "La fenêtre de connexion Google a été fermée avant la fin.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errMsg = "Requête de connexion interrompue ou annulée.";
+      } else if (error.message) {
+        errMsg = error.message;
+      }
+      toast.error(errMsg, { duration: 8000 });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim();
@@ -99,8 +124,9 @@ export default function Login() {
               className="space-y-6"
             >
               <Button 
-                onClick={signInWithGoogle}
-                className="w-full h-16 rounded-2xl bg-white hover:bg-slate-100 text-[#020617] font-black text-base flex items-center justify-center gap-4 transition-all active:scale-98 shadow-xl border border-white"
+                onClick={handleGoogleSubmit}
+                disabled={isSubmitting}
+                className="w-full h-16 rounded-2xl bg-white hover:bg-slate-100 text-[#020617] font-black text-base flex items-center justify-center gap-4 transition-all active:scale-98 shadow-xl border border-white disabled:opacity-50"
               >
                 <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
                 Se connecter avec Google
@@ -123,7 +149,16 @@ export default function Login() {
                 Connexion par E-mail
               </Button>
 
-              <p className="text-[11px] text-center text-slate-500 leading-relaxed max-w-[280px] mx-auto uppercase font-bold tracking-wider pt-4">
+              <div className="bg-blue-600/5 border border-blue-500/10 p-4 rounded-3xl space-y-2 text-xs font-semibold leading-relaxed text-slate-400">
+                <p className="text-blue-400 font-extrabold pb-1 block uppercase text-[10px] tracking-wider">💡 Guide de Connexion des Profils</p>
+                <p>Si vous avez été invité sur la plateforme ou configuré par le Super Admin :</p>
+                <ul className="list-disc pl-4 space-y-1 text-slate-400">
+                  <li>Soit utilisez <span className="text-white font-bold">Se connecter avec Google</span> avec la même adresse e-mail.</li>
+                  <li>Soit choisissez <span className="text-white font-bold">Connexion par E-mail</span> puis allez dans <span className="text-white font-bold">Créer un nouveau compte</span> en entrant cette adresse et le mot de passe de votre choix.</li>
+                </ul>
+              </div>
+
+              <p className="text-[11px] text-center text-slate-500 leading-relaxed max-w-[280px] mx-auto uppercase font-bold tracking-wider pt-2">
                 Plateforme d'administration, employés & clients de PouleCom Comores.
               </p>
             </motion.div>
