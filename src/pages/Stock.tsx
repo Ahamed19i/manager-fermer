@@ -21,7 +21,8 @@ import {
   ChevronRight,
   Sparkles,
   Calculator,
-  Wrench
+  Wrench,
+  Trash2
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
@@ -225,6 +226,25 @@ export default function Stock() {
       toast.error(error.message || "Erreur transfert");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  const isAdmin = profile?.role === 'admin' || profile?.email?.toLowerCase() === 'hassanimhoma2019@gmail.com';
+
+  async function handleDeleteLog(logId: string) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce flux de stock de l'historique ?")) {
+      return;
+    }
+    try {
+      await runTransaction(db, async (transaction) => {
+        const logRef = doc(db, 'stockLogs', logId);
+        transaction.delete(logRef);
+      });
+      toast.success("Flux de stock retiré de l'historique");
+      fetchLogs();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erreur de suppression : ${error.message}`);
     }
   }
 
@@ -520,6 +540,7 @@ export default function Stock() {
                     to={log.to || (log.type === 'production' ? 'Centrale' : log.type === 'adjustment' ? log.location : 'Client')} 
                     qty={log.quantity} 
                     time={log.timestamp?.toDate ? format(log.timestamp.toDate(), 'HH:mm (dd MMM)', { locale: fr }) : '...'} 
+                    onDelete={isAdmin ? () => handleDeleteLog(log.id) : undefined}
                   />
                 ))}
              </div>
@@ -530,7 +551,7 @@ export default function Stock() {
   );
 }
 
-function StockLogItem({ type, from, to, qty, time }: any) {
+function StockLogItem({ type, from, to, qty, time, onDelete }: any) {
   const icons: any = {
     transfer: <ArrowRightLeft className="w-4 h-4 text-blue-500" />,
     production: <ArrowDownToLine className="w-4 h-4 text-green-500" />,
@@ -558,11 +579,22 @@ function StockLogItem({ type, from, to, qty, time }: any) {
             </p>
          </div>
        </div>
-       <div className="text-right">
-          <p className={`font-black ${qty > 1000 ? 'text-blue-600' : 'text-slate-900 dark:text-white'}`}>
-            {type === 'adjustment' && qty > 0 ? `+${qty.toLocaleString()}` : qty.toLocaleString()}
-          </p>
-          <p className="text-[10px] text-slate-400 font-bold uppercase">{time}</p>
+       <div className="text-right flex items-center gap-1.5">
+          <div>
+             <p className={`font-black ${qty > 1000 ? 'text-blue-600' : 'text-slate-900 dark:text-white'}`}>
+                {type === 'adjustment' && qty > 0 ? `+${qty.toLocaleString()}` : qty.toLocaleString()}
+             </p>
+             <p className="text-[10px] text-slate-400 font-bold uppercase">{time}</p>
+          </div>
+          {onDelete && (
+             <button
+               onClick={onDelete}
+               className="p-1.5 hover:bg-red-950/30 rounded-lg text-slate-500 hover:text-red-400 transition-all cursor-pointer h-7 w-7 flex items-center justify-center opacity-70 hover:opacity-100 border-none ml-2"
+               title="Supprimer ce flux"
+             >
+                <Trash2 className="w-3 h-3" />
+             </button>
+          )}
        </div>
     </div>
   );

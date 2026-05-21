@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, orderBy, query, serverTimestamp, where, limit } from 'firebase/firestore';
+import { collection, addDoc, getDocs, orderBy, query, doc, deleteDoc, updateDoc, serverTimestamp, where, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
@@ -17,13 +18,16 @@ import {
   History,
   Calendar,
   Package,
-  ArrowUpRight
+  ArrowUpRight,
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../components/ui/dialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Client {
   id: string;
@@ -43,9 +47,13 @@ interface SaleRecord {
 }
 
 export default function Clients() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.email?.toLowerCase() === 'hassanimhoma2019@gmail.com';
+
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [search, setSearch] = useState('');
 
   // History states
@@ -53,10 +61,17 @@ export default function Clients() {
   const [clientSales, setClientSales] = useState<SaleRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Form states
+  // Form states - Add
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
+
+  // Form states - Edit
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -110,6 +125,48 @@ export default function Clients() {
     } catch (error) {
       toast.error('Erreur lors de l\'ajout');
     }
+  }
+
+  async function handleUpdateClient() {
+    if (!editingClient) return;
+    if (!editName.trim()) return toast.error("Le nom est obligatoire.");
+    setIsUpdating(true);
+    try {
+      await updateDoc(doc(db, 'clients', editingClient.id), {
+        name: editName,
+        phone: editPhone,
+        location: editLocation
+      });
+      toast.success("Informations du client mises à jour.");
+      setIsEditOpen(false);
+      setEditingClient(null);
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de la mise à jour.");
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleDeleteClient(client: Client) {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer ${client.name} de l'annuaire client ?`)) return;
+    try {
+      await deleteDoc(doc(db, 'clients', client.id));
+      toast.success("Client retiré du répertoire.");
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur de suppression.");
+    }
+  }
+
+  function startEditClient(client: Client) {
+    setEditingClient(client);
+    setEditName(client.name || '');
+    setEditPhone(client.phone || '');
+    setEditLocation(client.location || '');
+    setIsEditOpen(true);
   }
 
   const filteredClients = clients.filter(c => 
@@ -198,9 +255,26 @@ export default function Clients() {
                        <div className="w-14 h-14 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner ring-1 ring-blue-500/20">
                          {(client.name || 'C').charAt(0).toUpperCase()}
                        </div>
-                       <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5 active:scale-95 transition-all">
-                         <MoreVertical className="w-5 h-5 text-slate-600" />
-                       </Button>
+                        <div className="flex items-center gap-1.5">
+                          {isAdmin && (
+                            <>
+                              <button 
+                                onClick={() => startEditClient(client)}
+                                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+                                title="Modifier le client"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteClient(client)}
+                                className="p-1.5 hover:bg-red-950/30 rounded-lg text-slate-500 hover:text-red-400 transition-all cursor-pointer"
+                                title="Supprimer le client"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                     </div>
                     <h3 className="font-black text-xl text-white mb-4 tracking-tight">{client.name || 'Client sans nom'}</h3>
                     <div className="space-y-3">
@@ -314,6 +388,48 @@ export default function Clients() {
                  Fermer
                </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Client Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="rounded-[2.5rem] bg-slate-900 border-slate-800 text-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">Modifier Client</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 pt-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nom complet</Label>
+              <Input 
+                value={editName} 
+                onChange={e => setEditName(e.target.value)} 
+                className="h-14 rounded-2xl bg-slate-800 border-slate-700 font-bold px-5" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Téléphone</Label>
+              <Input 
+                value={editPhone} 
+                onChange={e => setEditPhone(e.target.value)} 
+                className="h-14 rounded-2xl bg-slate-800 border-slate-700 font-bold px-5" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Localisation</Label>
+              <Input 
+                value={editLocation} 
+                onChange={e => setEditLocation(e.target.value)} 
+                className="h-14 rounded-2xl bg-slate-800 border-slate-700 font-bold px-5" 
+              />
+            </div>
+            <Button 
+              onClick={handleUpdateClient} 
+              className="w-full h-16 rounded-2xl text-lg font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 mt-2 shadow-xl shadow-blue-500/20"
+              disabled={isUpdating}
+            >
+              {isUpdating ? 'Sauvegarde...' : 'Appliquer les Modifications'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -8,7 +8,9 @@ import {
   serverTimestamp, 
   runTransaction,
   limit,
-  doc
+  doc,
+  deleteDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,7 +35,9 @@ import {
   Clock, 
   PlusCircle,
   CreditCard,
-  Banknote
+  Banknote,
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
@@ -52,6 +56,8 @@ interface SaleRecord {
   totalPrice: number;
   paymentMethod: string;
   date: any;
+  location?: string;
+  unitPrice?: number;
 }
 
 export default function Sales() {
@@ -111,6 +117,144 @@ export default function Sales() {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Edit states for Sales
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [editQty, setEditQty] = useState(1);
+  const [editPrice, setEditPrice] = useState(2500);
+  const [editLocation, setEditLocation] = useState('Moroni');
+  const [editPayment, setEditPayment] = useState('cash');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const isAdmin = profile?.role === 'admin' || profile?.email?.toLowerCase() === 'hassanimhoma2019@gmail.com';
+
+  function startEditSale(sale: SaleRecord) {
+    setEditingSale(sale);
+    setEditQty(sale.quantity);
+    setEditPrice((sale as any).unitPrice || Math.round(sale.totalPrice / sale.quantity));
+    setEditLocation((sale as any).location || 'Moroni');
+    setEditPayment(sale.paymentMethod || 'cash');
+    setIsEditOpen(true);
+  }
+
+  async function handleDeleteSale(sale: SaleRecord) {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer cette vente de ${sale.quantity} plateaux ? Le stock de ${(sale as any).location || 'Moroni'} sera re-crédité.`)) {
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const locationStr = (sale as any).location || 'Moroni';
+        const stockRef = doc(db, 'stocks', locationStr);
+        const stockSnap = await transaction.get(stockRef);
+        const currentQty = stockSnap.exists() ? stockSnap.data().quantity : 0;
+
+        // delete sale doc
+        const saleRef = doc(db, 'sales', sale.id);
+        transaction.delete(saleRef);
+
+        // re-add stock
+        transaction.set(stockRef, {
+          quantity: currentQty + sale.quantity,
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
+
+        // log adjustment removal
+        const logRef = doc(collection(db, 'stockLogs'));
+        transaction.set(logRef, {
+          type: 'adjustment_sale_remove',
+          location: locationStr,
+          quantity: sale.quantity,
+          recordedBy: profile?.uid || 'system',
+          timestamp: serverTimestamp()
+        });
+      });
+
+      toast.success("Vente supprimée et stock point de vente re-crédité !");
+      fetchData();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erreur de suppression : ${error.message}`);
+    }
+  }
+
+  async function handleUpdateSale() {
+    if (!editingSale) return;
+    setIsUpdating(true);
+    try {
+      const differenceQty = editQty - editingSale.quantity;
+      const originalLocation = (editingSale as any).location || 'Moroni';
+      const newTotal = editQty * editPrice;
+
+      await runTransaction(db, async (transaction) => {
+        if (originalLocation === editLocation) {
+          const stockRef = doc(db, 'stocks', editLocation);
+          const stockSnap = await transaction.get(stockRef);
+          const currentQty = stockSnap.exists() ? stockSnap.data().quantity : 0;
+
+          if (currentQty < differenceQty) {
+            throw new Error(`Stock insuffisant dans ${editLocation} (requis: ${differenceQty}, dispo: ${currentQty})`);
+          }
+
+          transaction.set(stockRef, {
+            quantity: Math.max(0, currentQty - differenceQty),
+            lastUpdated: serverTimestamp()
+          }, { merge: true });
+        } else {
+          const origStockRef = doc(db, 'stocks', originalLocation);
+          const origSnap = await transaction.get(origStockRef);
+          const origQty = origSnap.exists() ? origSnap.data().quantity : 0;
+
+          const newStockRef = doc(db, 'stocks', editLocation);
+          const newSnap = await transaction.get(newStockRef);
+          const newQty = newSnap.exists() ? newSnap.data().quantity : 0;
+
+          if (newQty < editQty) {
+            throw new Error(`Stock insuffisant dans le nouveau point de vente ${editLocation}`);
+          }
+
+          transaction.set(origStockRef, {
+            quantity: origQty + editingSale.quantity,
+            lastUpdated: serverTimestamp()
+          }, { merge: true });
+
+          transaction.set(newStockRef, {
+            quantity: newQty - editQty,
+            lastUpdated: serverTimestamp()
+          }, { merge: true });
+        }
+
+        const saleRef = doc(db, 'sales', editingSale.id);
+        transaction.update(saleRef, {
+          quantity: editQty,
+          unitPrice: editPrice,
+          totalPrice: newTotal,
+          location: editLocation,
+          paymentMethod: editPayment
+        });
+
+        const logRef = doc(collection(db, 'stockLogs'));
+        transaction.set(logRef, {
+          type: 'adjustment_sale_edit',
+          location: editLocation,
+          quantity: -differenceQty,
+          recordedBy: profile?.uid || 'system',
+          timestamp: serverTimestamp()
+        });
+      });
+
+      toast.success("Vente modifiée et stock synchronisé !");
+      setIsEditOpen(false);
+      setEditingSale(null);
+      fetchData();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erreur de modification : ${error.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   }
 
@@ -327,9 +471,29 @@ export default function Sales() {
                        sale.date ? format(new Date(sale.date), 'dd MMM, HH:mm') : '...'}
                     </p>
                   </div>
-                  <Badge className="bg-blue-500/10 text-blue-500 rounded-full border-none font-black text-[10px] px-3 py-1 shadow-inner ring-1 ring-blue-500/20">
-                    {(sale as any).location}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge className="bg-blue-500/10 text-blue-500 rounded-full border-none font-black text-[10px] px-3 py-1 shadow-inner ring-1 ring-blue-500/20">
+                      {(sale as any).location}
+                    </Badge>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <button 
+                          onClick={() => startEditSale(sale)}
+                          className="p-1 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-all cursor-pointer"
+                          title="Modifier la vente"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteSale(sale)}
+                          className="p-1 hover:bg-red-950/30 rounded text-slate-500 hover:text-red-400 transition-all cursor-pointer"
+                          title="Supprimer la vente"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex justify-between items-end pt-6 border-t border-slate-800/50">
@@ -349,6 +513,76 @@ export default function Sales() {
           ))
         )}
       </div>
+
+      {/* Edit Sale Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-md rounded-[2.5rem] bg-slate-900 border-slate-800 text-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">Modifier Vente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 pt-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Point de Vente</Label>
+                <Select value={editLocation} onValueChange={setEditLocation}>
+                  <SelectTrigger className="h-12 rounded-2xl bg-slate-800 border-slate-700">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-800 text-white rounded-xl">
+                    {locations.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mode de Paiement</Label>
+                <Select value={editPayment} onValueChange={setEditPayment}>
+                  <SelectTrigger className="h-12 rounded-2xl bg-slate-800 border-slate-700">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-800 text-white rounded-xl">
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="mobile">Mvola</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Plateaux</Label>
+                <Input 
+                  type="number" 
+                  value={editQty} 
+                  onChange={e => setEditQty(parseInt(e.target.value) || 0)} 
+                  className="h-16 rounded-2xl font-black text-2xl bg-slate-800 border-slate-700 text-blue-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Prix / Plateau</Label>
+                <Input 
+                  type="number" 
+                  value={editPrice} 
+                  onChange={e => setEditPrice(parseInt(e.target.value) || 0)} 
+                  className="h-16 rounded-2xl font-black text-2xl bg-slate-800 border-slate-700"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 bg-blue-600/10 rounded-3xl border border-blue-500/20 flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Nouveau Total</span>
+              <span className="text-3xl font-black text-white">{(editQty * editPrice).toLocaleString()} <span className="text-xs">KMF</span></span>
+            </div>
+
+            <Button 
+              onClick={handleUpdateSale}
+              disabled={isUpdating} 
+              className="w-full h-16 rounded-2xl text-lg font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 mt-2 shadow-xl shadow-blue-500/20"
+            >
+              {isUpdating ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

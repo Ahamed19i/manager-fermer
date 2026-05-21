@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp, runTransaction, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -14,10 +15,16 @@ import {
   TableHeader, 
   TableRow 
 } from '../components/ui/table';
-import { Egg, Plus, Calendar, History } from 'lucide-react';
+import { Egg, Plus, Calendar, History, Trash2, Edit3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle 
+} from '../components/ui/dialog';
 
 interface ProductionRecord {
   id: string;
@@ -32,6 +39,15 @@ export default function Production() {
   const [history, setHistory] = useState<ProductionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit states
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingProd, setEditingProd] = useState<ProductionRecord | null>(null);
+  const [editQty, setEditQty] = useState(0);
+  const [editBroken, setEditBroken] = useState(0);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const isAdmin = profile?.role === 'admin' || profile?.email?.toLowerCase() === 'hassanimhoma2019@gmail.com';
 
   useEffect(() => {
     fetchHistory();
@@ -119,6 +135,94 @@ export default function Production() {
       toast.error(`Erreur: ${error.code === 'permission-denied' ? 'Accès refusé' : error.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteProduction(record: ProductionRecord) {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer cette récolte de ${record.quantity} plateaux ? Cela déduira également ce montant du stock de la Centrale.`)) {
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const stockRef = doc(db, 'stocks', 'Centrale');
+        const stockSnap = await transaction.get(stockRef);
+        const currentQty = stockSnap.exists() ? stockSnap.data().quantity : 0;
+
+        const prodRef = doc(db, 'productions', record.id);
+        transaction.delete(prodRef);
+
+        transaction.set(stockRef, {
+          quantity: Math.max(0, currentQty - record.quantity),
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
+
+        const logRef = doc(collection(db, 'stockLogs'));
+        transaction.set(logRef, {
+          type: 'adjustment_remove',
+          location: 'Centrale',
+          quantity: -record.quantity,
+          recordedBy: profile?.uid || 'system',
+          timestamp: serverTimestamp()
+        });
+      });
+
+      toast.success("Production supprimée et stock Centrale corrigé.");
+      fetchHistory();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erreur de suppression : ${error.message}`);
+    }
+  }
+
+  function startEditProduction(record: ProductionRecord) {
+    setEditingProd(record);
+    setEditQty(record.quantity);
+    setEditBroken(record.broken);
+    setIsEditOpen(true);
+  }
+
+  async function handleUpdateProduction() {
+    if (!editingProd) return;
+    setIsUpdating(true);
+    try {
+      const difference = editQty - editingProd.quantity;
+
+      await runTransaction(db, async (transaction) => {
+        const stockRef = doc(db, 'stocks', 'Centrale');
+        const stockSnap = await transaction.get(stockRef);
+        const currentQty = stockSnap.exists() ? stockSnap.data().quantity : 0;
+
+        const prodRef = doc(db, 'productions', editingProd.id);
+        transaction.update(prodRef, {
+          quantity: editQty,
+          broken: editBroken
+        });
+
+        transaction.set(stockRef, {
+          quantity: Math.max(0, currentQty + difference),
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
+
+        const logRef = doc(collection(db, 'stockLogs'));
+        transaction.set(logRef, {
+          type: 'adjustment_edit',
+          location: 'Centrale',
+          quantity: difference,
+          recordedBy: profile?.uid || 'system',
+          timestamp: serverTimestamp()
+        });
+      });
+
+      toast.success("Récolte modifiée et stock Centrale mis à jour.");
+      setIsEditOpen(false);
+      setEditingProd(null);
+      fetchHistory();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Erreur de modification : ${error.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   }
 
@@ -214,6 +318,7 @@ export default function Production() {
                       <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 py-6 pl-8">Date</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500">Récolte</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 pr-8 text-right">Pertes</TableHead>
+                      {isAdmin && <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 pr-8 text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -223,11 +328,12 @@ export default function Production() {
                           <TableCell className="pl-8"><div className="h-4 w-32 bg-slate-800 animate-pulse rounded-lg" /></TableCell>
                           <TableCell><div className="h-4 w-12 bg-slate-800 animate-pulse rounded-lg" /></TableCell>
                           <TableCell className="pr-8 text-right"><div className="h-4 w-8 bg-slate-800 animate-pulse rounded-lg ml-auto" /></TableCell>
+                          {isAdmin && <TableCell className="pr-8 text-right"><div className="h-4 w-8 bg-slate-800 animate-pulse rounded-lg ml-auto" /></TableCell>}
                         </TableRow>
                       ))
                     ) : history.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-20 text-slate-500 font-black uppercase tracking-widest text-xs">Aucune production enregistrée.</TableCell>
+                        <TableCell colSpan={isAdmin ? 4 : 3} className="text-center py-20 text-slate-500 font-black uppercase tracking-widest text-xs">Aucune production enregistrée.</TableCell>
                       </TableRow>
                     ) : (
                       history.map((record) => (
@@ -244,6 +350,26 @@ export default function Production() {
                           <TableCell className="text-red-500/80 font-black pr-8 text-right text-sm">
                             {(record.broken > 0) ? `-${record.broken} œufs` : '—'}
                           </TableCell>
+                          {isAdmin && (
+                            <TableCell className="pr-8 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => startEditProduction(record)}
+                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+                                  title="Modifier"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteProduction(record)}
+                                  className="p-1.5 hover:bg-red-950/30 rounded-lg text-slate-500 hover:text-red-400 transition-all cursor-pointer"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}
@@ -254,6 +380,42 @@ export default function Production() {
           </Card>
         </div>
       </div>
+
+      {/* Edit Production Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="rounded-[2.5rem] bg-slate-900 border-slate-800 text-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">Modifier Récolte</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 pt-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Quantité (Plateaux de 30)</Label>
+              <Input 
+                type="number"
+                value={editQty} 
+                onChange={e => setEditQty(parseInt(e.target.value) || 0)} 
+                className="h-14 rounded-2xl bg-slate-800 border-slate-700 font-bold px-5" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Caries / Pertes (Œufs)</Label>
+              <Input 
+                type="number"
+                value={editBroken} 
+                onChange={e => setEditBroken(parseInt(e.target.value) || 0)} 
+                className="h-14 rounded-2xl bg-slate-800 border-slate-700 font-bold px-5" 
+              />
+            </div>
+            <Button 
+              onClick={handleUpdateProduction} 
+              className="w-full h-16 rounded-2xl text-lg font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-600 mt-2 shadow-xl shadow-orange-500/20"
+              disabled={isUpdating}
+            >
+              {isUpdating ? 'Sauvegarde...' : 'Appliquer les Modifications'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
